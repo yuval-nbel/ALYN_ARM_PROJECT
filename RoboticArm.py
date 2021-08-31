@@ -29,21 +29,30 @@ from dynamixel_sdk import *
 offset_relative_to_IK_Model = {1: 90, 2: 180, 3: 180, 4: 180, 
                                5: 180, 6: 0, 7: 180, 8: 0, 9: 0}
 
-def robot_to_model_position(robot_position):
+offset_relative_to_IK_Model_openu = {1: 181, 2: 180, 3: 180, 4: 180, 
+                               5: 180, 6: 0, 7: 180, 8: 0, 9: 0}
 
-    return [     np.deg2rad(robot_position[1]-offset_relative_to_IK_Model[1]),
-            -1 * np.deg2rad(robot_position[3]-offset_relative_to_IK_Model[3]),
-            -1 * np.deg2rad((360-robot_position[4])-offset_relative_to_IK_Model[4]),
-                 np.deg2rad(robot_position[6]-offset_relative_to_IK_Model[6]),
-            -1 * np.deg2rad(robot_position[7]-offset_relative_to_IK_Model[7])]
+def robot_to_model_position(robot_position, openu=False):
+    if openu:
+        offset = offset_relative_to_IK_Model_openu
+    else:
+        offset = offset_relative_to_IK_Model
+    return [     np.deg2rad(robot_position[1]-offset[1]),
+            -1 * np.deg2rad(robot_position[3]-offset[3]),
+            -1 * np.deg2rad((360-robot_position[4])-offset[4]),
+                 np.deg2rad(robot_position[6]-offset[6]),
+            -1 * np.deg2rad(robot_position[7]-offset[7])]
 
-def model_to_robot_position(model_position):
-     
-    f = [ (np.rad2deg(     model_position[0])+offset_relative_to_IK_Model[1])%360,
-          (np.rad2deg(-1 * model_position[1])+offset_relative_to_IK_Model[2])%360,
-          360-((np.rad2deg(-1 * model_position[2])+offset_relative_to_IK_Model[4])%360),
-          (np.rad2deg(     model_position[3])+offset_relative_to_IK_Model[6])%360,
-          (np.rad2deg(-1 * model_position[4])+offset_relative_to_IK_Model[7])%360]
+def model_to_robot_position(model_position, openu=False):
+    if openu:
+        offset = offset_relative_to_IK_Model_openu
+    else:
+        offset = offset_relative_to_IK_Model
+    f = [ (np.rad2deg(     model_position[0])+offset[1])%360,
+          (np.rad2deg(-1 * model_position[1])+offset[2])%360,
+          360-((np.rad2deg(-1 * model_position[2])+offset[4])%360),
+          (np.rad2deg(     model_position[3])+offset[6])%360,
+          (np.rad2deg(-1 * model_position[4])+offset[7])%360]
 
     return {1: f[0], 2: 361-f[1], 3: f[1], 4: f[2],
             5: 361-f[2], 6: f[3], 7: f[4], 8: 180, 9: 180}
@@ -53,8 +62,9 @@ full_ang1 = 361
 full_ang2 = 361
 
 # OPENU
-#full_ang1 = 360
-#full_ang2 = 362
+full_ang1_openu = 360
+full_ang2_openu = 362
+
 
 Robot = {'Real':{
             'CMD':
@@ -104,16 +114,9 @@ Robot = {'Real':{
 
             
             'Shelf'       :   {'Default': {1: 85, 2: full_ang1-145, 3: 145, 4: 190, 5: full_ang2-190, 6: 180, 7:135, 8:180, 9:255},
-                                'Target' : {1: 111.31702715038168, 2: 177.14316797592414, 3: 183.85683202407586, 4: 191.04324289760845, 5: 169.95675710239155, 6: 179.45891861047554, 7: 170, 8: 180, 9: 255}, # 3
-                                
+                                'Target' : {1: 111.31702715038168, 2: 177.14316797592414, 3: 183.85683202407586, 4: 191.04324289760845, 5: 169.95675710239155, 6: 179.45891861047554, 7: 170, 8: 180, 9: 255},  
                                 'Chair'  : {1: 38, 2: 250, 3: full_ang1-250, 4: 117, 5: full_ang2-117, 6: 273, 7: 204, 8: 89, 9: 255},
                         },
-     
-            
-    
-             'Floor_high'       :   {'Default': {1: 130, 2: full_ang1-186, 3: 186, 4: 224, 5: full_ang2-224, 6: 179, 7: 158, 8: 187, 9: 255},
-                                'Target' : {1: 130, 2: 158, 3: 203, 4: 156, 5: 205, 6: 179, 7: 158, 8: 187, 9: 255},
-                                'Chair'  : {1: 38, 2: 250, 3: full_ang1-250, 4: 117, 5: full_ang2-117, 6: 273, 7: 204, 8: 89, 9: 255}},
 
             'Floor'       :   {'Default': {1: 175, 2: 193, 3: 168, 4: 191, 5: 170, 6: 178, 7: 156, 8: 187, 9: 255},
                                 'Target' : {1: 182.7964620728535, 2: 101.20365743496313, 3: 259.79634256503687, 4: 188.74850042860834, 5: 172.25149957139166, 6: 179.92160867784926, 7: 156, 8: 187, 9: 255},
@@ -122,6 +125,191 @@ Robot = {'Real':{
              'Before_Destruct' : {1: 84, 2: full_ang1-75, 3: 75,  4: 90, 5: full_ang2-90, 6: 180, 7:135, 8:180, 9:255},
                       }
         } 
+
+
+
+Robot_openu = {'Real':{
+            'CMD':
+                {'Baud Rate'        : {'Address': 8, 'Value': {9600   : 0,
+                                                               57600  : 1,
+                                                               115200 : 2,
+                                                               1000000: 3,
+                                                               2000000: 4,
+                                                               3000000: 5,
+                                                               4000000: 6,
+                                                               4500000: 7}}, 
+                 'Operating mode'   : {'Address': 11, 'Value': {'Torque'   : 0,
+                                                                'Velocity' : 1,
+                                                                'Position' : 3,
+                                                                'PWM'      : 16}},
+                 'Torque Enable'    : {'Address': 64, 'Value': {'OFF': 0, 'ON' : 1}},                           
+                 'LED'              : {'Address': 65, 'Value': {'OFF': 0, 'ON' : 1}},                                  
+                 'Goal Position'    : {'Address': 116},                         
+                 'Present Position' : {'Address': 132}, 
+                 'Goal torque'      : {'Address': 102},
+                 'Ranges'           : {1: range (0,   360),
+                                       2: range (75,  290),
+                                       3: range (75,  290),
+                                       4: range (85,  285),
+                                       5: range (85,  285),
+                                       6: range (0,   360),
+                                       7: range (55,  275),
+                                       8: range (20,  320),
+                                       9: range (130, 260)},
+                 'Goal PWM'   : {'Address': 100, 'Value': 885}, # ranging [-885, 885]
+                 'Goal Current'   : {'Address': 102, 'Value': 0}, # Maximum is the Limit torque
+                 'Limit torque'     : {'Address': 38,  'Value': 100},  # ranging [-1193, 1193], 2.69mA per step, 3.210A
+                 'Velocity Limit'     : {'Address': 44,  'Value': 100},
+                 'Profile Velocity'      : {'Address': 112, 'Value': 30000}, 
+                 'Profile Acceleration'  : {'Address': 108, 'Value': 1}, # speed (not high from ProfileVelocity/2)
+                },
+             'Priority': [[4, 5], [2, 3], [1], [6], [7], [8], [9]],
+             
+             # Note that engines 2 and 5 were set to reverse mode to allow 
+             # both to be configured similarly to their counterpart.
+             'Home'        :   {1: 180, 2: full_ang1_openu-135, 3: 135, 4: 180, 5: full_ang2_openu-180, 6: 180, 7:135, 8:180, 9:240},
+
+             'Drinking'    :   {'Default': {1: 180, 2: full_ang1_openu-170, 3: 170, 4: 170, 5: full_ang2_openu-170, 6: 90, 7:90, 8:90, 9:240},
+                                'Target' : {1: 180, 2: full_ang1_openu-248, 3: 248, 4: 250, 5: full_ang2_openu-250, 6: 88, 7: 90, 8: 90, 9: 240},
+                                'Chair'  : {1: 123, 2: full_ang1_openu-154, 3: 154, 4: 155, 5: full_ang2_openu-155, 6: 91, 7: 90, 8: 90, 9: 240}},
+
+             'Shelf'       :   {'Default': {1: 180, 2: full_ang1_openu-145, 3: 145, 4: 190, 5: full_ang2_openu-190, 6: 180, 7:135, 8:180, 9:255},
+                                'Target' : {1: 178, 2: 193, 3: 168, 4: 192, 5: 170, 6: 179, 7: 172, 8: 180, 9: 255},
+                                'Chair'  : {1: 133, 2: 250, 3: 111, 4: 117, 5: 244, 6: 273, 7: 204, 8: 89, 9: 255}},
+            'Before_Destruct' : {1: 180, 2: full_ang1_openu-75, 3: 75,  4: 90, 5: full_ang2_openu-90, 6: 180, 7:135, 8:180, 9:240},
+     
+           
+             'Floor'       :   {'Default': {1: 180, 2: 193, 3: 168, 4: 191, 5: 170, 6: 178, 7: 156, 8: 187, 9: 255},
+                                'Target' : {1: 180, 2: 105.45228363449328, 3: 255.54771636550672, 4: 186.10935569252223, 5: 174.89064430747777, 6: 180.0302012302459, 7: 156, 8: 187, 9: 255},
+                                'Chair'  : {1: 133, 2: 250, 3: full_ang1_openu-250, 4: 117, 5: full_ang2_openu-117, 6: 273, 7: 204, 8: 89, 9: 255}},
+                              
+             
+            }
+        } 
+
+def return_Robot(openu, speed):
+    if openu:  
+        Robot = {'Real':{
+            'CMD':
+                {'Baud Rate'        : {'Address': 8, 'Value': {9600   : 0,
+                                                               57600  : 1,
+                                                               115200 : 2,
+                                                               1000000: 3,
+                                                               2000000: 4,
+                                                               3000000: 5,
+                                                               4000000: 6,
+                                                               4500000: 7}}, 
+                 'Operating mode'   : {'Address': 11, 'Value': {'Torque'   : 0,
+                                                                'Velocity' : 1,
+                                                                'Position' : 3,
+                                                                'PWM'      : 16}},
+                 'Torque Enable'    : {'Address': 64, 'Value': {'OFF': 0, 'ON' : 1}},                           
+                 'LED'              : {'Address': 65, 'Value': {'OFF': 0, 'ON' : 1}},                                  
+                 'Goal Position'    : {'Address': 116},                         
+                 'Present Position' : {'Address': 132}, 
+                 'Goal torque'      : {'Address': 102},
+                 'Ranges'           : {1: range (0,   360),
+                                       2: range (75,  290),
+                                       3: range (75,  290),
+                                       4: range (85,  285),
+                                       5: range (85,  285),
+                                       6: range (0,   360),
+                                       7: range (55,  275),
+                                       8: range (20,  320),
+                                       9: range (130, 260)},
+                 'Goal PWM'   : {'Address': 100, 'Value': 885}, # ranging [-885, 885]
+                 'Goal Current'   : {'Address': 102, 'Value': 0}, # Maximum is the Limit torque
+                 'Limit torque'     : {'Address': 38,  'Value': 100},  # ranging [-1193, 1193], 2.69mA per step, 3.210A
+                 'Velocity Limit'     : {'Address': 44,  'Value': 100},
+                 'Profile Velocity'      : {'Address': 112, 'Value': 30000}, 
+                 'Profile Acceleration'  : {'Address': 108, 'Value': speed}, # speed (not high from ProfileVelocity/2)
+                },
+             'Priority': [[4, 5], [2, 3], [1], [6], [7], [8], [9]],
+             
+             # Note that engines 2 and 5 were set to reverse mode to allow 
+             # both to be configured similarly to their counterpart.
+             'Home'        :   {1: 180, 2: full_ang1_openu-135, 3: 135, 4: 180, 5: full_ang2_openu-180, 6: 180, 7:135, 8:180, 9:240},
+
+             'Drinking'    :   {'Default': {1: 180, 2: full_ang1_openu-170, 3: 170, 4: 170, 5: full_ang2_openu-170, 6: 90, 7:90, 8:90, 9:240},
+                                'Target' : {1: 180, 2: full_ang1_openu-248, 3: 248, 4: 250, 5: full_ang2_openu-250, 6: 88, 7: 90, 8: 90, 9: 240},
+                                'Chair'  : {1: 123, 2: full_ang1_openu-154, 3: 154, 4: 155, 5: full_ang2_openu-155, 6: 91, 7: 90, 8: 90, 9: 240}},
+
+             'Shelf'       :   {'Default': {1: 180, 2: full_ang1_openu-145, 3: 145, 4: 190, 5: full_ang2_openu-190, 6: 180, 7:135, 8:180, 9:255},
+                                'Target' : {1: 178, 2: 193, 3: 168, 4: 192, 5: 170, 6: 179, 7: 172, 8: 180, 9: 255},
+                                'Chair'  : {1: 133, 2: 250, 3: 111, 4: 117, 5: 244, 6: 273, 7: 204, 8: 89, 9: 255}},
+            'Before_Destruct' : {1: 180, 2: full_ang1_openu-75, 3: 75,  4: 90, 5: full_ang2_openu-90, 6: 180, 7:135, 8:180, 9:240},
+     
+           
+             'Floor'       :   {'Default': {1: 180, 2: 193, 3: 168, 4: 191, 5: 170, 6: 178, 7: 156, 8: 187, 9: 255},
+                                'Target' : {1: 180, 2: 105.45228363449328, 3: 255.54771636550672, 4: 186.10935569252223, 5: 174.89064430747777, 6: 180.0302012302459, 7: 156, 8: 187, 9: 255},
+                                'Chair'  : {1: 133, 2: 250, 3: full_ang1_openu-250, 4: 117, 5: full_ang2_openu-117, 6: 273, 7: 204, 8: 89, 9: 255}},
+                              
+             
+            }
+        } 
+    else:
+
+        Robot = {'Real':{
+            'CMD':
+                {'Baud Rate'        : {'Address': 8, 'Value': {9600   : 0,
+                                                               57600  : 1,
+                                                               115200 : 2,
+                                                               1000000: 3,
+                                                               2000000: 4,
+                                                               3000000: 5,
+                                                               4000000: 6,
+                                                               4500000: 7}},                                               
+                 'Operating mode'   : {'Address': 11, 'Value': {'Torque'   : 0,
+                                                                'Velocity' : 1,
+                                                                'Position' : 3,
+                                                                'PWM'      : 16}},
+                 'Secondary(Shadow) ID'   : {'Address': 12, 'Value': {'Disable'   : 255}},                                               
+                 'Torque Enable'    : {'Address': 64, 'Value': {'OFF': 0, 'ON' : 1}},                           
+                 'LED'              : {'Address': 65, 'Value': {'OFF': 0, 'ON' : 1}},                                  
+                 'Goal Position'    : {'Address': 116},                         
+                 'Present Position' : {'Address': 132}, 
+                 'Goal torque'      : {'Address': 102},
+                 'Ranges'           : {1: range (0,   360),
+                                       2: range (75,  290),
+                                       3: range (75,  290),
+                                       4: range (85,  285),
+                                       5: range (85,  285),
+                                       6: range (0,   360),
+                                       7: range (55,  275),
+                                       8: range (20,  320),
+                                       9: range (130, 260)},
+                 'Goal PWM'   : {'Address': 100, 'Value': 885}, # ranging [-885, 885] # ACTUALLY CONTROL THE SPEED
+                 'Goal Current'   : {'Address': 102, 'Value': 20}, # Maximum is the Limit torque
+                 'Velocity Limit'   : {'Address': 44, 'Value': 100}, # ranging [0, 1023]
+                 'Limit torque'     : {'Address': 38,  'Value': 50},  # ranging [-1193, 1193], 2.69mA per step, 3.210A
+                 'Profile Velocity'      : {'Address': 112, 'Value': 30000}, 
+                 'Profile Acceleration'  : {'Address': 108, 'Value': speed}, # speed (not high from ProfileVelocity/2)
+                'Max Voltage Limit'     : {'Address': 32,  'Value': 120}, # 9.0 ~ 12.0 [V] (Recommended : 11.1V)
+                'Min Voltage Limit'     : {'Address': 34,  'Value': 90},
+                },
+                'Priority': [[4, 5], [2, 3], [1], [6], [8], [9], [7]],
+             # Note that engines 2 and 5 were set to reverse mode to allow 
+             # both to be configured similarly to their counterpart.
+             'Home'    : {1: 85, 2: full_ang1-135, 3: 135, 4: 180, 5: full_ang2-180, 6: 180, 7:135, 8:180, 9:255},
+             'Drinking'    :   {'Default': {1: 85, 2: full_ang1-170, 3: 170, 4: 170, 5: full_ang2-170, 6: 270, 7:256, 8:90, 9:255},
+                                'Target' : {1: 88, 2: 132, 3: 229, 4: 229, 5: 132, 6: 265, 7: 255, 8: 90, 9: 255}, # DESK                                                           
+                                'Chair'  : {1: 24, 2: 192, 3: 169, 4: 182, 5: 179, 6: 255, 7: 256, 8: 90, 9: 255}},
+
+            
+            'Shelf'       :   {'Default': {1: 85, 2: full_ang1-145, 3: 145, 4: 190, 5: full_ang2-190, 6: 180, 7:135, 8:180, 9:255},
+                                'Target' : {1: 111.31702715038168, 2: 177.14316797592414, 3: 183.85683202407586, 4: 191.04324289760845, 5: 169.95675710239155, 6: 179.45891861047554, 7: 170, 8: 180, 9: 255},  
+                                'Chair'  : {1: 38, 2: 250, 3: full_ang1-250, 4: 117, 5: full_ang2-117, 6: 273, 7: 204, 8: 89, 9: 255},
+                        },
+
+            'Floor'       :   {'Default': {1: 175, 2: 193, 3: 168, 4: 191, 5: 170, 6: 178, 7: 156, 8: 187, 9: 255},
+                                'Target' : {1: 182.7964620728535, 2: 101.20365743496313, 3: 259.79634256503687, 4: 188.74850042860834, 5: 172.25149957139166, 6: 179.92160867784926, 7: 156, 8: 187, 9: 255},
+                                'Chair'  : {1: 38, 2: 250, 3: full_ang1-250, 4: 117, 5: full_ang2-117, 6: 273, 7: 204, 8: 89, 9: 255}},
+
+             'Before_Destruct' : {1: 84, 2: full_ang1-75, 3: 75,  4: 90, 5: full_ang2-90, 6: 180, 7:135, 8:180, 9:255},
+                      }
+        } 
+
+    return Robot
 
 class RoboticArm:
     

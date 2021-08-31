@@ -1,13 +1,12 @@
+from RoboticArm import Robot_openu
 import importlib
 import nengo
 from nengo.neurons import Direct, LIF
 from nengo.simulator import Simulator as NengoSimulator
 
 from PS4_controller import PS4Controller
-#from PS4_controller_xaiver import PS4Controller
 
 from RoboticArm import *
-#from RoboticArm_openu import *
 
 from IK import viper300
 import numpy as np
@@ -22,29 +21,41 @@ import time
 
 class RobotState:
     
-    def __init__(self, init_state):
+    def __init__(self, init_state, openu):
         self.state_chair = init_state
-        self.state_model = robot_to_model_position(init_state)
+        self.state_model = robot_to_model_position(init_state, openu)
     
-    def update_chair(self, new_state):
+    def update_chair(self, new_state, openu):
         self.state_chair = new_state
-        self.state_model = robot_to_model_position(self.state_chair)
+        self.state_model = robot_to_model_position(self.state_chair, openu)
 
-    def update_model(self, update):
+    def update_model(self, update, openu):
         self.state_model += update
-        m = model_to_robot_position(self.state_model)
+        m = model_to_robot_position(self.state_model, openu)
         for i in range(1,7):
             self.state_chair[i] = m[i]
-        
-        
-robot_config = Robot    # Viper300 configuration
-ik_model = viper300()   # Viper300 IK model
+
+
+"""""""""""""""""""""""""""""""""""""""""""""""""""""
+Choose paramerters:
+"""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+os_type = "ubuntu_18"           ## "ubuntu_18" / "xavier"  
+openu = False                    ## True=openu, False=alyn
+using_the_physical_arm = False
+nengo_type = "no nengo"        ## "no nengo" / "Direct" / "LIF OPENU" / "LIF ALYN" / "LIF LOIHI"
+use_keyboard = True            ## True=keyboard, False=joystick
+speed = 2                       ## effects the speed 
+
+"""""""""""""""""""""""""""""""""""""""""""""""""""""
+"""""""""""""""""""""""""""""""""""""""""""""""""""""
+
 velocity_delta = 0.01  # Gain factor for actuation
+ik_model = viper300()   # Viper300 IK model
+state = RobotState(Robot['Real']['Home'], openu)
 
-state = RobotState(Robot['Real']['Home']) 
-using_the_physical_arm = True
 
-
+robot_config = return_Robot(openu, speed)    # Viper300 configuration
 
 if using_the_physical_arm:
     arm = RoboticArm(robot_config, COM_ID = '/dev/ttyUSB0')
@@ -91,7 +102,7 @@ print("##################################################################")
 
     
 
-def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict, arm, time_tmp):
+def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict, arm, time_tmp, os_type, nengo_type):
 
     global reference
     global last_state
@@ -181,21 +192,23 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
         last_state = new_state
 
 
-# gripper - Working with self.current
-    elif buttons_dict[1]['value']: # Circle press
+    # gripper - Working with self.current
+    elif ((os_type == "ubuntu_18" or use_keyboard) and buttons_dict[1]['value']) or \
+          (os_type == "xavier" and buttons_dict[2]['value']):   # Circle press
         # Set Goal Tourqe to 20
         arm.change_current_gripper(20)
         print("open gripper")
         
     
-     
-    elif buttons_dict[0]['value']: # Cross press 
+    elif ((os_type == "ubuntu_18" or use_keyboard) and buttons_dict[0]['value']) or \
+          (os_type == "xavier" and buttons_dict[1]['value']):   # Cross press 
         # Set Goal Tourqe to -50
         arm.change_current_gripper(-50)
         print("close gripper")
 
     # Shift task
-    elif buttons_dict[3]['value']: # Rectangle press 
+    elif ((os_type == "ubuntu_18" or use_keyboard) and buttons_dict[3]['value']) or \
+          (os_type == "xavier" and buttons_dict[0]['value']):   # Rectangle press 
 
         # Checks if holding a cup
         arm_actuation = robot_state.state_chair
@@ -246,7 +259,8 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
         pprint.pprint('model state: {}'.format(get_xyz_numeric_3d(ik_model.get_xyz_numeric(robot_state.state_model))))
 
    # drinking routine
-    elif buttons_dict[2]['value']: # Triangle press  
+    elif ((os_type == "ubuntu_18" or use_keyboard) and buttons_dict[2]['value']) or \
+          (os_type == "xavier" and buttons_dict[3]['value']):   # Triangle press  
         arm_actuation = robot_state.state_chair
         grip = arm_actuation[9]
         try:
@@ -284,37 +298,47 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
             print("TASK HAS ONLY DEFAULT POSITION: ", self.task_list[self.task])
  
 
-    # destruct
-    elif buttons_dict[12]['value']: # Down press -> Terminate
-        arm.destruct()
-        return
+
+    if os_type == "xavier":
+        # change joystick
+        if buttons_dict[4]['value']: # L1 
+            if self.joy == 0: self.joy = 1
+            else: self.joy = 0
+            print("joystick changed")
+
+        # destruct
+        elif buttons_dict[5]['value']: # Down press -> Terminate
+            arm.destruct()
+            return
+
   
 
     if axis_direction != "o_left" and axis_direction != "o_right" and axis_direction is not None and act:
 
         # NENGO
-        '''
-        TS = 1
-        start = time.time()
-        self.sim.run(TS, progress_bar=True)
-        end = time.time()
-        print("#########################") # inference time sim
-        print('inference time sim:')
-        print(end-start)
-        print("#########################")
-        '''
+        if nengo_type != "no nengo" and nengo_type != "LIF LOIHI":
+            
+            TS = 1
+            start = time.time()
+            self.sim.run(TS, progress_bar=True)
+            end = time.time()
+            print("#########################") # inference time sim
+            print('inference time sim:')
+            print(end-start)
+            print("#########################")
+            
         
 
         # LOIHI
-        
-        TS = 0.1
-        start = time.time()
-        self.sim.run(TS)
-        end = time.time()
-        print("#########################") # inference time loihi
-        print('inference time loihi:')
-        print(end-start)
-        print("#########################")
+        if nengo_type == "LIF LOIHI":
+            TS = 0.1
+            start = time.time()
+            self.sim.run(TS)
+            end = time.time()
+            print("#########################") # inference time loihi
+            print('inference time loihi:')
+            print(end-start)
+            print("#########################")
         
 
         print("#########################") # time between JOYAXISMOTION events
@@ -326,11 +350,12 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
 
         direction = np.zeros(6)
 
-        # LOIHI / NENGO
-        direction[:3] = self.output
-
-        # Numeric
- ##       direction[:3] = target[:3] - self.current 
+        if nengo_type != "no nengo":
+            # LOIHI / NENGO
+            direction[:3] = self.output
+        else:
+            # Numeric
+            direction[:3] = target[:3] - self.current 
         
         if np.sum(self.control_dof[3:]) > 0:
             R_e = ik_model.calculate_R(position)
@@ -350,13 +375,13 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
             state_before[i] = robot_state.state_chair[i]
         ###########
 
-        robot_state.update_model(updated_position)
+        robot_state.update_model(updated_position, openu)
         arm_actuation = robot_state.state_chair
 
         updated_current = get_xyz_numeric_3d(ik_model.get_xyz_numeric(robot_state.state_model))
         
         if not in_limit(updated_current):
-            robot_state.update_model(-updated_position)
+            robot_state.update_model(-updated_position, openu)
             arm_actuation = robot_state.state_chair
 
         ###########
@@ -392,7 +417,10 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
         buttons_dict[1]['value'] = False
         buttons_dict[2]['value'] = False
         buttons_dict[3]['value'] = False
-        buttons_dict[12]['value'] = False
+        
+        if os_type == "xavier":
+            buttons_dict[4]['value'] = False
+
         axis_direction = None
 
     
@@ -420,15 +448,18 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
     buttons_dict[1]['value'] = False
     buttons_dict[2]['value'] = False
     buttons_dict[3]['value'] = False
-    buttons_dict[12]['value'] = False
+
+    if os_type == "xavier":
+            buttons_dict[4]['value'] = False
+
     axis_direction = None
 
 
-PS4 = PS4Controller()
+PS4 = PS4Controller(use_keyboard)
 
 if not using_the_physical_arm:
-    PS4.listen_axis(state, None, actuation_function_axis = actuation_function_axis)
+    PS4.listen_axis(state, None, nengo_type, use_keyboard, os_type, actuation_function_axis = actuation_function_axis)
 if using_the_physical_arm:    
-    PS4.listen_axis(state, arm, actuation_function_axis = actuation_function_axis)
+    PS4.listen_axis(state, arm, nengo_type, use_keyboard, os_type, actuation_function_axis = actuation_function_axis)
 
 #PS4.debug(state, None, actuation_function_axis = actuation_function_axis)
