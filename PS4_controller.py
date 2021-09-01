@@ -157,7 +157,7 @@ class PS4Controller():
             return 0.37
         '''
 
-        # 0.2 ms
+        # 0.2 ms / 0.1 ms
         if self.axis_direction == "Right":
             return 0.76
         if self.axis_direction == "Left":
