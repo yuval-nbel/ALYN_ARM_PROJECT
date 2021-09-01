@@ -46,7 +46,7 @@ using_the_physical_arm = False
 nengo_type = "no nengo"        ## "no nengo" / "Direct" / "LIF OPENU" / "LIF ALYN" / "LIF LOIHI"
 use_keyboard = True            ## True=keyboard, False=joystick
 speed = 2                       ## effects the speed 
-
+print_diff = True               ## True=print the difference calculation / False = don't print
 """""""""""""""""""""""""""""""""""""""""""""""""""""
 """""""""""""""""""""""""""""""""""""""""""""""""""""
 
@@ -258,7 +258,7 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
         pprint.pprint('chair state: {}'.format(robot_state.state_chair))
         pprint.pprint('model state: {}'.format(get_xyz_numeric_3d(ik_model.get_xyz_numeric(robot_state.state_model))))
 
-   # drinking routine
+   # task routine
     elif ((os_type == "ubuntu_18" or use_keyboard) and buttons_dict[2]['value']) or \
           (os_type == "xavier" and buttons_dict[3]['value']):   # Triangle press  
         arm_actuation = robot_state.state_chair
@@ -368,12 +368,13 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
     
         updated_position = (np.dot(np.linalg.pinv(J), direction)*velocity_delta)
 
-        ###########
-        # Format the old state to make a difference calculation
-        state_before = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7:0, 8:0, 9:0}
-        for i in range(1,9):
-            state_before[i] = robot_state.state_chair[i]
-        ###########
+        if print_diff:
+            ###########
+            # Format the old state to make a difference calculation
+            state_before = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7:0, 8:0, 9:0}
+            for i in range(1,9):
+                state_before[i] = robot_state.state_chair[i]
+            ###########
 
         robot_state.update_model(updated_position, openu)
         arm_actuation = robot_state.state_chair
@@ -384,22 +385,23 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
             robot_state.update_model(-updated_position, openu)
             arm_actuation = robot_state.state_chair
 
-        ###########
-        # Format the new state to make a difference calculation
-        print()
-        state_after = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7:0, 8:0, 9:0}
-        for i in range(1,9):
-            state_after[i] = robot_state.state_chair[i]
-        print("############# diff #############")
-        tmp = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7:0, 8:0, 9:0}
-        for i in range(1,9):
-            tmp[i] = state_after[i] - state_before[i]
+        if print_diff:
+            ###########
+            # Format the new state to make a difference calculation
+            print()
+            state_after = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7:0, 8:0, 9:0}
+            for i in range(1,9):
+                state_after[i] = robot_state.state_chair[i]
+            print("############# diff #############")
+            tmp = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7:0, 8:0, 9:0}
+            for i in range(1,9):
+                tmp[i] = state_after[i] - state_before[i]
 
-        # Print difference calculation        
-        print(tmp)
-        print("################################")
-        print()
-        ###########
+            # Print difference calculation        
+            print(tmp)
+            print("################################")
+            print()
+            ###########
 
         pprint.pprint('Target: {}'.format(target))
         pprint.pprint('new engines position: {}'.format(arm_actuation))
