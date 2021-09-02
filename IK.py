@@ -7,7 +7,7 @@ Written by Dr. Elishai Ezra Tsur
 
 import sympy as sp
 import numpy as np
-
+import nengo
 
 class viper300:
     """ Describe the Viperx200 6DOF robotic arm by Trossen Robotic
@@ -364,3 +364,71 @@ class viper300:
                          [J25, J26, J27, J28, J29]], dtype='float')
 
     
+
+def get_intercepts(n_neurons, dimensions):
+
+    triangular = np.random.triangular(left=0.35, 
+                                      mode=0.45, 
+                                      right=0.55, 
+                                      size=n_neurons)
+                                      
+    intercepts = nengo.dists.CosineSimilarity(dimensions + 2).ppf(1 - triangular)
+    return intercepts
+
+def calc_T(q):
+
+    c0 = np.cos(q[0])
+    c1 = np.cos(q[1])
+    c2 = np.cos(q[2])
+    c3 = np.cos(q[3])
+    c4 = np.cos(q[4])
+    
+    s0 = np.sin(q[0])
+    s1 = np.sin(q[1])
+    s2 = np.sin(q[2])
+    s3 = np.sin(q[3])
+    s4 = np.sin(q[4])
+    
+    return np.array([[0.208*((-s1*c0*c2 - s2*c0*c1)*c3 + s0*s3)*s4 + 
+                      0.208*(-s1*s2*c0 + c0*c1*c2)*c4 - 0.299*s1*s2*c0 - 
+                      0.3*s1*c0 + 0.299*c0*c1*c2 + 0.06*c0*c1],
+                     [0.208*(-s1*s2 + c1*c2)*s4*c3 + 
+                      0.208*(s1*c2 + s2*c1)*c4 + 
+                      0.299*s1*c2 + 0.06*s1 + 0.299*s2*c1 + 0.3*c1 + 0.118],
+                     [0.208*((s0*s1*c2 + s0*s2*c1)*c3 + s3*c0)*s4 + 
+                      0.208*(s0*s1*s2 - s0*c1*c2)*c4 + 0.299*s0*s1*s2 + 
+                      0.3*s0*s1 - 0.299*s0*c1*c2 - 0.06*s0*c1]], dtype='float')
+
+def calc_J(q):
+
+    c0 = np.cos(q[0])
+    c1 = np.cos(q[1])
+    c2 = np.cos(q[2])
+    c3 = np.cos(q[3])
+    c4 = np.cos(q[4])
+    
+    s0 = np.sin(q[0])
+    s1 = np.sin(q[1])
+    s2 = np.sin(q[2])
+    s3 = np.sin(q[3])
+    s4 = np.sin(q[4])
+
+    s12  = np.sin(q[1] + q[2])
+    c12  = np.cos(q[1] + q[2])
+
+    
+    return np.array([[0.3*s0*s1 + 0.208*s0*s4*s12*c3 - 0.06*s0*c1 - 0.208*s0*c4*c12 - 
+                      0.299*s0*c12 + 0.208*s3*s4*c0, -(0.06*s1 + 0.208*s4*c3*c12 + 
+                      0.208*s12*c4 + 0.299*s12 + 0.3*c1)*c0,
+                      -(0.208*s4*c3*c12 + 0.208*s12*c4 + 0.299*s12)*c0,
+                      0.208*(s0*c3 + s3*s12*c0)*s4, 0.208*(s0*s3 - s12*c0*c3)*c4 - 
+                      0.208*s4*c0*c12],
+                     [0,-0.3*s1 - 0.208*s4*s12*c3 + 0.06*c1 + 0.208*c4*c12 + 0.299*c12,
+                      -0.208*s4*s12*c3 + 0.208*c4*c12 + 0.299*c12,-0.208*s3*s4*c12,
+                      -0.208*s4*s12 + 0.208*c3*c4*c12],
+                     [-0.208*s0*s3*s4 + 0.3*s1*c0 + 0.208*s4*s12*c0*c3 - 0.06*c0*c1 - 
+                      0.208*c0*c4*c12 -0.299*c0*c12,(0.06*s1 + 0.208*s4*c3*c12 + 0.208*s12*c4 + 
+                      0.299*s12 + 0.3*c1)*s0,(0.208*s4*c3*c12 + 0.208*s12*c4 + 
+                      0.299*s12)*s0, -0.208*(s0*s3*s12 - c0*c3)*s4,
+                      0.208*(s0*s12*c3 + s3*c0)*c4 + 0.208*s0*s4*c12]], dtype='float')
+

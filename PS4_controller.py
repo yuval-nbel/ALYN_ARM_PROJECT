@@ -13,6 +13,7 @@ import nengo
 import nengo_loihi
 from nengo.neurons import Direct, LIF
 from nengo.simulator import Simulator as NengoSimulator
+from IK import *
 
 os.environ["KAPOHOBAY"] = "1"
 nengo_loihi.set_defaults()
@@ -145,7 +146,110 @@ class PS4Controller():
             self.sim = nengo.Simulator(net, dt=0.001)
 
         
-    
+    def inverse_kinematics(self, nengo_type, lr = 1e-3,n_scale=100):
+        model = nengo.Network(seed=0)
+        count = 0
+        if nengo_type == "Direct":
+            neuron = Direct()
+        else:
+            neuron = LIF()
+            
+        np.random.seed(0)
+        with model:
+
+            def target_xyz_func(t):
+                return self.target
+
+            def current_q_func(t):
+                return self.current_q
+
+            model.q_in = nengo.Node(current_q_func)
+            model.q_c = nengo.Ensemble(n_scale*5, seed=0,
+                                intercepts=get_intercepts(n_scale*5, 5),
+                                #encoders = encoders_dist.sample(n_scale*5, 5),
+                                dimensions=5,
+                                neuron_type=neuron,)
+
+            nengo.Connection(model.q_in, model.q_c)
+
+            model.q_t = nengo.Ensemble(n_scale*5, dimensions=5,
+                                intercepts=get_intercepts(n_scale*5, 5),
+                                #encoders = encoders_dist.sample(n_scale*5, 5),
+                                neuron_type=neuron,
+                                )
+            model.conn = nengo.Connection(model.q_c, model.q_t, synapse=0.01)
+
+            model.xyz_t = nengo.Ensemble(n_scale*3, dimensions=3,
+                                intercepts=get_intercepts(n_scale*3, 5),
+                                #encoders = encoders_dist.sample(n_scale*3, 3),
+                                neuron_type=neuron,
+                                )
+
+            def q2xyz(q):
+                t = calc_T(q)
+                return t[0], t[1], t[2]
+
+            nengo.Connection(model.q_t, model.xyz_t, function=q2xyz)
+
+            model.xyz_in = nengo.Node(target_xyz_func)
+            nengo.Connection(model.xyz_in, model.xyz_t, transform=-1)
+
+            model.error_node = nengo.Node(size_in=8)
+            model.error_q = nengo.Ensemble(n_scale*8, dimensions=8,
+                                    intercepts=get_intercepts(n_scale*8, 8),
+                                    #encoders = encoders_dist.sample(n_scale*8, 8)
+                                    )
+
+            def combine(error_q):
+                J_x = calc_J(error_q[0:5])
+                return np.dot(np.linalg.pinv(J_x), error_q[5:])
+
+            nengo.Connection(model.q_t, model.error_node[0:5])
+            nengo.Connection(model.xyz_t, model.error_node[5:])
+
+            nengo.Connection(model.error_node, model.error_q)
+
+            model.error_combined = nengo.Ensemble(n_scale*5, dimensions=5,
+                                            intercepts=get_intercepts(n_scale*5, 5),
+                                            #encoders = encoders_dist.sample(n_scale*5, 5),
+                                            neuron_type=neuron,
+                                        )
+            nengo.Connection(model.error_q, model.error_combined, function=combine, synapse=0.01)
+
+            model.conn.learning_rule_type = nengo.PES(learning_rate=lr)
+            nengo.Connection(model.error_combined, model.conn.learning_rule)
+            
+            
+            # Shut off learning by inhibiting the error population
+            model.stop_learning = nengo.Node(output=lambda t: t >= 10)
+
+            nengo.Connection(
+                model.stop_learning, model.error_combined.neurons, 
+                transform=-20 * np.ones((model.error_combined.n_neurons, 1))
+            )
+            
+
+            def comp_error(error_combined):
+                return np.sqrt(sum(np.power(error_combined, 2)))
+
+            model.error_out = nengo.Node(size_in=1, size_out=1)
+            nengo.Connection(model.error_combined, model.error_out, function=comp_error)
+
+            def output_func(t, x):
+                self.output_q = np.copy(x)
+
+            output = nengo.Node(output_func, size_in=5, size_out=0)
+            nengo.Connection(model.q_t, output) 
+
+        if nengo_type == "LIF LOIHI":
+        # LOIHI
+            self.sim = nengo_loihi.Simulator(model,remove_passthrough=False, target='loihi', hardware_options={
+                    "snip_max_spikes_per_step": 300
+                    })
+        else:
+        # NENGO    
+            self.sim = nengo.Simulator(model, dt=0.001)
+
 
     # Stop sending commends after leaving the joystick 
     def get_loihi_time(self):
@@ -175,7 +279,7 @@ class PS4Controller():
         
         
 
-    def listen_axis(self, robot_state, arm, nengo_type, use_keyboard, os_type, actuation_function_axis):
+    def listen_axis(self, robot_state, arm, nengo_type, use_keyboard, os_type, actuation_function_axis, IK_model=1):
         dict_nengo = {"no nengo": 0.144, "Direct": 0.352, "LIF OPENU":0.366, "LIF ALYN": 0.479, "LIF LOIHI":self.get_loihi_time()}
         self.last_time = time.time()
         self.this_time = None
@@ -196,20 +300,34 @@ class PS4Controller():
                 else:
                    self.listen_keyboard(actuation_function_axis, robot_state, arm, nengo_type, dict_nengo, os_type) 
         else:
-            # prepare nengo model
-            self.target = np.zeros(3)
-            self.current = np.zeros(3)
-            self.generate_net(nengo_type)
-            with self.sim:
-                while True:
-                    if not use_keyboard:
-                        self.listen_joystick(actuation_function_axis, robot_state, arm, nengo_type, dict_nengo, os_type)
-                    else:
-                        self.listen_keyboard(actuation_function_axis, robot_state, arm, nengo_type, dict_nengo, os_type) 
+            if IK_model == 1:
+                # prepare nengo model
+                self.target = np.zeros(3)
+                self.current = np.zeros(3)
+                self.generate_net(nengo_type)
+                with self.sim:
+                    while True:
+                        if not use_keyboard:
+                            self.listen_joystick(actuation_function_axis, robot_state, arm, nengo_type, dict_nengo, os_type)
+                        else:
+                            self.listen_keyboard(actuation_function_axis, robot_state, arm, nengo_type, dict_nengo, os_type) 
+            else:
+                # prepare nengo model
+                self.target = np.zeros(3)
+                self.current = np.zeros(3)
+                self.current_q = robot_state.state_model
+                self.inverse_kinematics(nengo_type)
+                with self.sim:
+                    while True:
+                        if not use_keyboard:
+                            self.listen_joystick(actuation_function_axis, robot_state, arm, nengo_type, dict_nengo, os_type, IK_model)
+                        else:
+                            self.listen_keyboard(actuation_function_axis, robot_state, arm, nengo_type, dict_nengo, os_type, IK_model)
+                
 
                     
 
-    def listen_joystick(self, actuation_function_axis, robot_state, arm, nengo_type, dict_nengo, os_type):
+    def listen_joystick(self, actuation_function_axis, robot_state, arm, nengo_type, dict_nengo, os_type, IK_model=1):
         joystick_sensitivity = 0.9 
         act = False
 
@@ -304,15 +422,15 @@ class PS4Controller():
                             self.abg_target = [3.141592653589793, 2.970679785877549e-16, -3.0543261909900767]
                             self.control_dof = [True,True,True,False,False,False]
 
-                        actuation_function_axis(self, robot_state, act, self.axis_direction ,self.buttons, arm, time_tmp, os_type, nengo_type)
+                        actuation_function_axis(self, robot_state, act, self.axis_direction ,self.buttons, arm, time_tmp, os_type, nengo_type, IK_model)
                         self.last_time = self.this_time
 
 
-    def listen_keyboard(self, actuation_function_axis,robot_state, arm, nengo_type, dict_nengo, os_type):
+    def listen_keyboard(self, actuation_function_axis,robot_state, arm, nengo_type, dict_nengo, os_type, IK_model=1):
         value = "start"
         act = False
         while value != 'q':
-            value = input("To go right press: d \nTo go left press: a \nTo go forward press: w \nTo go backward prees: s \nTo go up press: u \nTo go down press: j \nTo shift task press: t \nTo shift routine press: r \nTo terminate press: q \nTo close gripper: x \nTo open gripper: o")
+            value = input("To go right press: d \nTo go left press: a \nTo go forward press: w \nTo go backward prees: s \nTo go up press: u \nTo go down press: j \nTo shift task press: t \nTo shift routine press: r \nTo terminate press: q \nTo close gripper: x \nTo open gripper: o\n\n")
             if value == 'd':
                 self.axis_direction = "Right"
             elif value == 'a':

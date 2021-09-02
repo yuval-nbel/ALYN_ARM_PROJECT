@@ -1,4 +1,4 @@
-from RoboticArm import Robot_openu
+from threading import current_thread
 import importlib
 import nengo
 from nengo.neurons import Direct, LIF
@@ -43,19 +43,21 @@ Choose paramerters:
 os_type = "ubuntu_18"           ## "ubuntu_18" / "xavier"  
 openu = False                    ## True=openu, False=alyn
 using_the_physical_arm = False
-nengo_type = "no nengo"        ## "no nengo" / "Direct" / "LIF OPENU" / "LIF ALYN" / "LIF LOIHI"
+nengo_type = "LIF ALYN"        ## "no nengo" / "Direct" / "LIF OPENU" / "LIF ALYN" / "LIF LOIHI"
 use_keyboard = True            ## True=keyboard, False=joystick
 speed = 2                       ## effects the speed 
 print_diff = True               ## True=print the difference calculation / False = don't print
+IK_model = 2                    ## 1=Hybrid, 2=SNN
+
 """""""""""""""""""""""""""""""""""""""""""""""""""""
 """""""""""""""""""""""""""""""""""""""""""""""""""""
-
-velocity_delta = 0.01  # Gain factor for actuation
-ik_model = viper300()   # Viper300 IK model
-state = RobotState(Robot['Real']['Home'], openu)
-
 
 robot_config = return_Robot(openu, speed)    # Viper300 configuration
+velocity_delta = 0.01  # Gain factor for actuation
+ik_model = viper300()   # Viper300 IK model
+state = RobotState(robot_config['Real']['Home'], openu)
+
+
 
 if using_the_physical_arm:
     arm = RoboticArm(robot_config, COM_ID = '/dev/ttyUSB0')
@@ -102,7 +104,7 @@ print("##################################################################")
 
     
 
-def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict, arm, time_tmp, os_type, nengo_type):
+def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict, arm, time_tmp, os_type, nengo_type,IK_model=1) :
 
     global reference
     global last_state
@@ -112,6 +114,7 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
     position = state.state_model
 
     self.current = get_xyz_numeric_3d(ik_model.get_xyz_numeric(position))
+    self.current_q = position
         
     # Right
     if axis_direction == "Right": # Right stick -> right
@@ -315,6 +318,7 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
 
     if axis_direction != "o_left" and axis_direction != "o_right" and axis_direction is not None and act:
 
+        
         # NENGO
         if nengo_type != "no nengo" and nengo_type != "LIF LOIHI":
             
@@ -327,7 +331,6 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
             print(end-start)
             print("#########################")
             
-        
 
         # LOIHI
         if nengo_type == "LIF LOIHI":
@@ -346,35 +349,41 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
         print(time_tmp)
         print("#########################")
 
-        target = self.target + self.abg_target # include oreintation in target
+        # Use the hybrid model
+        if IK_model == 1 or nengo_type == "no nengo":
 
-        direction = np.zeros(6)
+            target = self.target + self.abg_target # include oreintation in target
 
-        if nengo_type != "no nengo":
-            # LOIHI / NENGO
-            direction[:3] = self.output
-        else:
-            # Numeric
-            direction[:3] = target[:3] - self.current 
+            direction = np.zeros(6)
+
+            if nengo_type != "no nengo":
+                # LOIHI / NENGO
+                direction[:3] = self.output
+            else:
+                # Numeric
+                direction[:3] = target[:3] - self.current 
+            
+            if np.sum(self.control_dof[3:]) > 0:
+                R_e = ik_model.calculate_R(position)
+                direction[3:] = calc_orientation_forces(target[3:], R_e)
+
+            direction = direction[self.control_dof]
+
+            J = ik_model.calc_J_numeric(position)
+            J = J[self.control_dof]
         
-        if np.sum(self.control_dof[3:]) > 0:
-            R_e = ik_model.calculate_R(position)
-            direction[3:] = calc_orientation_forces(target[3:], R_e)
+            updated_position = (np.dot(np.linalg.pinv(J), direction)*velocity_delta)
 
-        direction = direction[self.control_dof]
+            if print_diff:
+                ###########
+                # Format the old state to make a difference calculation
+                state_before = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7:0, 8:0, 9:0}
+                for i in range(1,9):
+                    state_before[i] = robot_state.state_chair[i]
+                ###########
 
-        J = ik_model.calc_J_numeric(position)
-        J = J[self.control_dof]
-    
-        updated_position = (np.dot(np.linalg.pinv(J), direction)*velocity_delta)
-
-        if print_diff:
-            ###########
-            # Format the old state to make a difference calculation
-            state_before = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7:0, 8:0, 9:0}
-            for i in range(1,9):
-                state_before[i] = robot_state.state_chair[i]
-            ###########
+        else:
+            updated_position = self.output_q - self.current_q
 
         robot_state.update_model(updated_position, openu)
         arm_actuation = robot_state.state_chair
