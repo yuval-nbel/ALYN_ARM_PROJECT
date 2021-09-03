@@ -1,5 +1,6 @@
 import math
 import numpy as np
+import nengo
 
 def euler_from_quaternion(quaternion):
 
@@ -273,3 +274,246 @@ def quaternion_from_euler(ai, aj, ak, axes="rxyz"):
         q[j] *= -1.0
 
     return q
+
+
+
+
+def get_intercepts(n_neurons, dimensions):
+
+    triangular = np.random.triangular(left=0.35, 
+                                      mode=0.45, 
+                                      right=0.55, 
+                                      size=n_neurons)
+                                      
+    intercepts = nengo.dists.CosineSimilarity(dimensions + 2).ppf(1 - triangular)
+    return intercepts
+
+def calc_T(q):
+
+    c0 = np.cos(q[0])
+    c1 = np.cos(q[1])
+    c2 = np.cos(q[2])
+    c3 = np.cos(q[3])
+    c4 = np.cos(q[4])
+    
+    s0 = np.sin(q[0])
+    s1 = np.sin(q[1])
+    s2 = np.sin(q[2])
+    s3 = np.sin(q[3])
+    s4 = np.sin(q[4])
+    
+    return np.array([[0.208*((-s1*c0*c2 - s2*c0*c1)*c3 + s0*s3)*s4 + 
+                      0.208*(-s1*s2*c0 + c0*c1*c2)*c4 - 0.299*s1*s2*c0 - 
+                      0.3*s1*c0 + 0.299*c0*c1*c2 + 0.06*c0*c1],
+                     [0.208*(-s1*s2 + c1*c2)*s4*c3 + 
+                      0.208*(s1*c2 + s2*c1)*c4 + 
+                      0.299*s1*c2 + 0.06*s1 + 0.299*s2*c1 + 0.3*c1 + 0.118],
+                     [0.208*((s0*s1*c2 + s0*s2*c1)*c3 + s3*c0)*s4 + 
+                      0.208*(s0*s1*s2 - s0*c1*c2)*c4 + 0.299*s0*s1*s2 + 
+                      0.3*s0*s1 - 0.299*s0*c1*c2 - 0.06*s0*c1]], dtype='float')
+
+def calc_J(q):
+
+    c0 = np.cos(q[0])
+    c1 = np.cos(q[1])
+    c2 = np.cos(q[2])
+    c3 = np.cos(q[3])
+    c4 = np.cos(q[4])
+    
+    s0 = np.sin(q[0])
+    s1 = np.sin(q[1])
+    s2 = np.sin(q[2])
+    s3 = np.sin(q[3])
+    s4 = np.sin(q[4])
+
+    s12  = np.sin(q[1] + q[2])
+    c12  = np.cos(q[1] + q[2])
+
+    
+    return np.array([[0.3*s0*s1 + 0.208*s0*s4*s12*c3 - 0.06*s0*c1 - 0.208*s0*c4*c12 - 
+                      0.299*s0*c12 + 0.208*s3*s4*c0, -(0.06*s1 + 0.208*s4*c3*c12 + 
+                      0.208*s12*c4 + 0.299*s12 + 0.3*c1)*c0,
+                      -(0.208*s4*c3*c12 + 0.208*s12*c4 + 0.299*s12)*c0,
+                      0.208*(s0*c3 + s3*s12*c0)*s4, 0.208*(s0*s3 - s12*c0*c3)*c4 - 
+                      0.208*s4*c0*c12],
+                     [0,-0.3*s1 - 0.208*s4*s12*c3 + 0.06*c1 + 0.208*c4*c12 + 0.299*c12,
+                      -0.208*s4*s12*c3 + 0.208*c4*c12 + 0.299*c12,-0.208*s3*s4*c12,
+                      -0.208*s4*s12 + 0.208*c3*c4*c12],
+                     [-0.208*s0*s3*s4 + 0.3*s1*c0 + 0.208*s4*s12*c0*c3 - 0.06*c0*c1 - 
+                      0.208*c0*c4*c12 -0.299*c0*c12,(0.06*s1 + 0.208*s4*c3*c12 + 0.208*s12*c4 + 
+                      0.299*s12 + 0.3*c1)*s0,(0.208*s4*c3*c12 + 0.208*s12*c4 + 
+                      0.299*s12)*s0, -0.208*(s0*s3*s12 - c0*c3)*s4,
+                      0.208*(s0*s12*c3 + s3*c0)*c4 + 0.208*s0*s4*c12]], dtype='float')
+
+def calc_T_O(q):
+    """ Calculate EE location in operational space by solving the for Tx numerically
+    
+    Equation was derived symbolically and was then written here manually.
+    Nuerical evaluation works faster then symbolically. 
+    """
+    
+    q0 = q[0]
+    q1 = q[1]
+    q2 = q[2]
+    q3 = q[3]
+    q4 = q[4]
+    
+    sin = np.sin
+    cos = np.cos
+
+    T0 = 0.208*((sin(q0)*sin(q1)*cos(q2) + sin(q0)*sin(q2)*cos(q1))*cos(q3) + sin(q3)*cos(q0))*sin(q4) + \
+        0.208*(sin(q0)*sin(q1)*sin(q2) - sin(q0)*cos(q1)*cos(q2))*cos(q4) + 0.299*sin(q0)*sin(q1)*sin(q2) + \
+        0.3*sin(q0)*sin(q1) - 0.299*sin(q0)*cos(q1)*cos(q2) - 0.06*sin(q0)*cos(q1)
+
+    
+    T1 = 0.208*((-sin(q1)*cos(q0)*cos(q2) - sin(q2)*cos(q0)*cos(q1))*cos(q3) + sin(q0)*sin(q3))*sin(q4) + \
+        0.208*(-sin(q1)*sin(q2)*cos(q0) + cos(q0)*cos(q1)*cos(q2))*cos(q4) - 0.299*sin(q1)*sin(q2)*cos(q0) - \
+        0.3*sin(q1)*cos(q0) + 0.299*cos(q0)*cos(q1)*cos(q2) + 0.06*cos(q0)*cos(q1)
+    
+
+    T2 = 0.208*(-sin(q1)*sin(q2) + cos(q1)*cos(q2))*sin(q4)*cos(q3) + 0.208*(sin(q1)*cos(q2) + \
+        sin(q2)*cos(q1))*cos(q4) + 0.299*sin(q1)*cos(q2) + 0.06*sin(q1) + 0.299*sin(q2)*cos(q1) + 0.3*cos(q1) + 0.118
+
+    T3 = 1
+
+    return np.array([[T0],
+                        [T1],
+                        [T2], 
+                        [T3]], dtype='float')
+
+def calc_J_O(q):
+        """ Calculate the Jacobian for q numerically
+         
+         Equation was derived symbolically and was then written here manually.
+         Nuerical evaluation works faster then symbolically. 
+         """
+        
+        q0 = q[0]
+        q1 = q[1]
+        q2 = q[2]
+        q3 = q[3]
+        q4 = q[4]
+        
+        
+        sin = np.sin
+        cos = np.cos
+
+        # position
+        J0 = -0.208*sin(q0)*sin(q3)*sin(q4) + 0.3*sin(q1)*cos(q0) + 0.208*sin(q4)*sin(q1 + q2)*cos(q0)*cos(q3) - 0.06*cos(q0)*cos(q1) - \
+            0.208*cos(q0)*cos(q4)*cos(q1 + q2) - 0.299*cos(q0)*cos(q1 + q2)
+
+
+        J1 = (0.06*sin(q1) + 0.208*sin(q4)*cos(q3)*cos(q1 + q2) + 0.208*sin(q1 + q2)*cos(q4) + 0.299*sin(q1 + q2) + 0.3*cos(q1))*sin(q0)
+
+        J2 = (0.208*sin(q4)*cos(q3)*cos(q1 + q2) + 0.208*sin(q1 + q2)*cos(q4) + 0.299*sin(q1 + q2))*sin(q0)
+        
+        J3 = -0.208*(sin(q0)*sin(q3)*sin(q1 + q2) - cos(q0)*cos(q3))*sin(q4)
+        
+        J4 = 0.208*(sin(q0)*sin(q1 + q2)*cos(q3) + sin(q3)*cos(q0))*cos(q4) + 0.208*sin(q0)*sin(q4)*cos(q1 + q2)
+        
+        J5 = 0.3*sin(q0)*sin(q1) + 0.208*sin(q0)*sin(q4)*sin(q1 + q2)*cos(q3) - 0.06*sin(q0)*cos(q1) - \
+            0.208*sin(q0)*cos(q4)*cos(q1 + q2) - 0.299*sin(q0)*cos(q1 + q2) + 0.208*sin(q3)*sin(q4)*cos(q0)
+
+        J6 = -(0.06*sin(q1) + 0.208*sin(q4)*cos(q3)*cos(q1 + q2) + 0.208*sin(q1 + q2)*cos(q4) + 0.299*sin(q1 + q2) + 0.3*cos(q1))*cos(q0)
+       
+        J7 = -(0.208*sin(q4)*cos(q3)*cos(q1 + q2) + 0.208*sin(q1 + q2)*cos(q4) + 0.299*sin(q1 + q2))*cos(q0)
+        
+        J8 = 0.208*(sin(q0)*cos(q3) + sin(q3)*sin(q1 + q2)*cos(q0))*sin(q4)
+        
+        J9 = 0.208*(sin(q0)*sin(q3) - sin(q1 + q2)*cos(q0)*cos(q3))*cos(q4) - 0.208*sin(q4)*cos(q0)*cos(q1 + q2)
+
+        J10 = 0
+        
+        J11 = -0.3*sin(q1) - 0.208*sin(q4)*sin(q1 + q2)*cos(q3) + 0.06*cos(q1) + 0.208*cos(q4)*cos(q1 + q2) + 0.299*cos(q1 + q2)
+        
+        J12 = -0.208*sin(q4)*sin(q1 + q2)*cos(q3) + 0.208*cos(q4)*cos(q1 + q2) + 0.299*cos(q1 + q2)
+        
+        J13 = -0.208*sin(q3)*sin(q4)*cos(q1 + q2)
+        
+        J14 = -0.208*sin(q4)*sin(q1 + q2) + 0.208*cos(q3)*cos(q4)*cos(q1 + q2)  
+
+
+        # oriantetion
+        J15=0
+        J16=cos(q0)
+        J17=cos(q0)
+        J18=sin(q0)*sin(q1)*sin(q2) - sin(q0)*cos(q1)*cos(q2)
+        J19=-(sin(q0)*sin(q1)*cos(q2) + sin(q0)*sin(q2)*cos(q1))*sin(q3) + cos(q0)*cos(q3)
+
+
+        J20=0
+        J21=sin(q0)
+        J22=sin(q0)
+        J23=-sin(q1)*sin(q2)*cos(q0) + cos(q0)*cos(q1)*cos(q2)
+        J24=-(-sin(q1)*cos(q0)*cos(q2) - sin(q2)*cos(q0)*cos(q1))*sin(q3) + sin(q0)*cos(q3)
+
+        J25=1
+        J26=0
+        J27=0
+        J28=sin(q1)*cos(q2) + sin(q2)*cos(q1)
+        J29=-(-sin(q1)*sin(q2) + cos(q1)*cos(q2))*sin(q3)
+
+        
+        return np.array([[J0,  J1,  J2,  J3,  J4],
+                         [J5,  J6,  J7,  J8,  J9],
+                         [J10, J11, J12, J13, J14],
+                         [J15,  J16,  J17,  J18,  J19],
+                         [J20,  J21,  J22,  J23,  J24],
+                         [J25, J26, J27, J28, J29]], dtype='float')
+
+
+def calculate_R(q): # no o - v2
+        """ Calculate EE location in operational space by solving the for Tx numerically
+        
+        Equation was derived symbolically and was then written here manually.
+        Nuerical evaluation works faster then symbolically. 
+        """
+        
+        q0 = q[0]
+        q1 = q[1]
+        q2 = q[2]
+        q3 = q[3]
+        q4 = q[4]
+        
+        sin = np.sin
+        cos = np.cos
+
+        
+        T0 = -(sin(q0)*sin(q1)*cos(q2) + sin(q0)*sin(q2)*cos(q1))*sin(q3) + cos(q0)*cos(q3)
+
+
+        
+        T1 = ((sin(q0)*sin(q1)*cos(q2) + sin(q0)*sin(q2)*cos(q1))*cos(q3) + sin(q3)*cos(q0))*sin(q4) + \
+            (sin(q0)*sin(q1)*sin(q2) - sin(q0)*cos(q1)*cos(q2))*cos(q4)
+
+        
+        T2 = ((sin(q0)*sin(q1)*cos(q2) + sin(q0)*sin(q2)*cos(q1))*cos(q3) + sin(q3)*cos(q0))*cos(q4) - \
+            (sin(q0)*sin(q1)*sin(q2) - sin(q0)*cos(q1)*cos(q2))*sin(q4)
+
+        T4 = -(-sin(q1)*cos(q0)*cos(q2) - sin(q2)*cos(q0)*cos(q1))*sin(q3) + sin(q0)*cos(q3)
+
+
+        T5 = ((-sin(q1)*cos(q0)*cos(q2) - sin(q2)*cos(q0)*cos(q1))*cos(q3) + \
+            sin(q0)*sin(q3))*sin(q4) + (-sin(q1)*sin(q2)*cos(q0) + cos(q0)*cos(q1)*cos(q2))*cos(q4)
+
+
+        T6 = ((-sin(q1)*cos(q0)*cos(q2) - sin(q2)*cos(q0)*cos(q1))*cos(q3) + sin(q0)*sin(q3))*cos(q4) - \
+            (-sin(q1)*sin(q2)*cos(q0) + cos(q0)*cos(q1)*cos(q2))*sin(q4)
+
+
+        T8 = -(-sin(q1)*sin(q2) + cos(q1)*cos(q2))*sin(q3)
+
+
+        T9 = (-sin(q1)*sin(q2) + cos(q1)*cos(q2))*sin(q4)*cos(q3) + (sin(q1)*cos(q2) + sin(q2)*cos(q1))*cos(q4)
+
+
+        T10 = (-sin(q1)*sin(q2) + cos(q1)*cos(q2))*cos(q3)*cos(q4) - (sin(q1)*cos(q2) + sin(q2)*cos(q1))*sin(q4)
+
+
+        
+        
+
+        return np.array([[T0,  T1,  T2],
+                    [T4,  T5,  T6],
+                    [T8,  T9,  T10],], dtype='float')
+ 
