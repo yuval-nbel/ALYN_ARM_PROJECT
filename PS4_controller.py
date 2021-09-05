@@ -284,7 +284,7 @@ class PS4Controller():
 
 
             def q2xyz(q):
-                t = calc_T_O(q)
+                t = calc_T(q)
                 return t[0], t[1], t[2]
 
             nengo.Connection(model.q_t, model.xyz_t, function=q2xyz)
@@ -382,7 +382,7 @@ class PS4Controller():
         self.abg_target = None
 
         self.task_list = ['Home', 'Before_Destruct', 'Home', 'Drinking','Shelf','Floor','Shelf','Home','Before_Destruct']
-        self.task_list = ['Home', 'Drinking','Home','Before_Destruct']
+    #    self.task_list = ['Home', 'Drinking','Home','Before_Destruct']
 
         self.task = 0 # Home, Floor, Shelf or Drinking
         self.control_dof = [True,True,True,False,False,False]

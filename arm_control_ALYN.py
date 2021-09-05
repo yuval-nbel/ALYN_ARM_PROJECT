@@ -46,7 +46,7 @@ using_the_physical_arm = False
 nengo_type = "LIF ALYN"         ## "no nengo" / "Direct" / "LIF OPENU" / "LIF ALYN" / "LIF LOIHI"
 use_keyboard = True             ## True=keyboard, False=joystick
 speed = 2                       ## effects the speed 
-IK_model = 2                    ## 1=Hybrid, 2=SNN (no orientation), 3=SNN (with orientation)
+IK_model = 1                    ## 1=Hybrid, 2=SNN (no orientation), 3=SNN (with orientation)
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""
 """""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -63,7 +63,7 @@ if using_the_physical_arm:
     arm.go_home()
     # Dealing with the bug of the first move
     arm_actuation = robot_config['Real']['Home']
-    state.update_chair(arm_actuation)   
+    state.update_chair(arm_actuation,openu)   
     arm.set_position(arm_actuation)
 
 
@@ -222,7 +222,7 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
                 arm_actuation = robot_config['Real'][self.task_list[self.task]]['Target']
                 arm_actuation[9] = grip
                 self.task_position = 'Target'
-                robot_state.update_chair(arm_actuation)
+                robot_state.update_chair(arm_actuation,openu)
                 if arm is not None:  
                     arm.set_position(arm_actuation)
                 time.sleep(2)
@@ -232,7 +232,7 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
                 arm_actuation = robot_config['Real'][self.task_list[self.task]]['Chair']
                 arm_actuation[9] = grip
                 self.task_position = 'Chair'
-                robot_state.update_chair(arm_actuation)
+                robot_state.update_chair(arm_actuation,openu)
                 if arm is not None:  
                     arm.set_position(arm_actuation)
                 time.sleep(1)
@@ -248,7 +248,7 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
             arm_actuation = robot_config['Real'][self.task_list[self.task]]
 
         arm_actuation[9] = grip
-        robot_state.update_chair(arm_actuation)  
+        robot_state.update_chair(arm_actuation, openu)  
         
         if arm is not None:  
             arm.set_position(arm_actuation)
@@ -257,7 +257,7 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
 
         print("Shift task to: ", self.task_list[self.task])
         pprint.pprint('new engines position: {}'.format(arm_actuation))
-        pprint.pprint('chair state: {}'.format(robot_state.state_chair))
+        pprint.pprint('joints state: {}'.format(robot_state.state_model))
         pprint.pprint('model state: {}'.format(get_xyz_numeric_3d(ik_model.get_xyz_numeric(robot_state.state_model))))
 
    # task routine
@@ -284,7 +284,7 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
                 arm_actuation[9] = grip
                 self.task_position = 'Default'
 
-            robot_state.update_chair(arm_actuation)
+            robot_state.update_chair(arm_actuation,openu)
 
             if arm is not None:  
                 arm.set_position(arm_actuation)
@@ -294,7 +294,7 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
 
             print("Reaching to: ", self.task_position)
             pprint.pprint('new engines position: {}'.format(arm_actuation))
-            pprint.pprint('chair state: {}'.format(robot_state.state_chair))
+            pprint.pprint('joints state: {}'.format(robot_state.state_model))
             pprint.pprint('model state: {}'.format(get_xyz_numeric_3d(ik_model.get_xyz_numeric(robot_state.state_model))))
         except:
             print("TASK HAS ONLY DEFAULT POSITION: ", self.task_list[self.task])
@@ -425,7 +425,7 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
             print("Orientation right")
         pprint.pprint('new engines position: {}'.format(arm_actuation))
         
-        robot_state.update_chair(arm_actuation)  
+        robot_state.update_chair(arm_actuation,openu)  
 
         if arm is not None:  
             arm.set_position(arm_actuation)
