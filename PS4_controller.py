@@ -146,101 +146,6 @@ class PS4Controller():
         # NENGO    
             self.sim = nengo.Simulator(net, dt=0.001)
 
-        
-    def inverse_kinematics_no_oreientation(self, nengo_type, lr = 1e-3,n_scale=100):
-        model = nengo.Network(seed=0)
-        count = 0
-        if nengo_type == "Direct":
-            neuron = Direct()
-        else:
-            neuron = LIF()
-            
-        np.random.seed(0)
-        with model:
-
-            def target_xyz_func(t):
-                return self.target
-
-            def current_q_func(t):
-                return self.current_q
-
-            model.q_in = nengo.Node(current_q_func)
-            model.q_c = nengo.Ensemble(n_scale*5, seed=0,
-                                intercepts=get_intercepts(n_scale*5, 5),
-                                #encoders = encoders_dist.sample(n_scale*5, 5),
-                                dimensions=5,
-                                neuron_type=neuron,)
-
-            nengo.Connection(model.q_in, model.q_c)
-
-            model.q_t = nengo.Ensemble(n_scale*5, dimensions=5,
-                                intercepts=get_intercepts(n_scale*5, 5),
-                                #encoders = encoders_dist.sample(n_scale*5, 5),
-                                neuron_type=neuron,
-                                )
-            model.conn = nengo.Connection(model.q_c, model.q_t, synapse=0.01)
-
-            model.xyz_t = nengo.Ensemble(n_scale*3, dimensions=3,
-                                intercepts=get_intercepts(n_scale*3, 3),
-                                #encoders = encoders_dist.sample(n_scale*3, 3),
-                                neuron_type=neuron,
-                                )
-
-            def q2xyz(q):
-                t = calc_T(q)
-                return t[0], t[1], t[2]
-
-            nengo.Connection(model.q_t, model.xyz_t, function=q2xyz)
-
-            model.xyz_in = nengo.Node(target_xyz_func)
-            nengo.Connection(model.xyz_in, model.xyz_t, transform=-1)
-
-            model.error_node = nengo.Node(size_in=8)
-            model.error_q = nengo.Ensemble(n_scale*8, dimensions=8,
-                                    intercepts=get_intercepts(n_scale*8, 8),
-                                    )
-
-            def combine(error_q):
-                J_x = calc_J(error_q[0:5])
-                return np.dot(np.linalg.pinv(J_x), error_q[5:])
-
-            nengo.Connection(model.q_t, model.error_node[0:5])
-            nengo.Connection(model.xyz_t, model.error_node[5:])
-
-            nengo.Connection(model.error_node, model.error_q)
-
-            model.error_combined = nengo.Ensemble(n_scale*5, dimensions=5,
-                                            intercepts=get_intercepts(n_scale*5, 5),
-                                            neuron_type=neuron,
-                                        )
-            nengo.Connection(model.error_q, model.error_combined, function=combine, synapse=0.01)
-
-            model.conn.learning_rule_type = nengo.PES(learning_rate=lr)
-            nengo.Connection(model.error_combined, model.conn.learning_rule)
-            
-            
-
-            def comp_error(error_combined):
-                return np.sqrt(sum(np.power(error_combined, 2)))
-
-            model.error_out = nengo.Node(size_in=1, size_out=1)
-            nengo.Connection(model.error_combined, model.error_out, function=comp_error)
-
-            def output_func(t, x):
-                self.output_q = np.copy(x)
-
-            output = nengo.Node(output_func, size_in=5, size_out=0)
-            nengo.Connection(model.q_t, output) 
-
-        if nengo_type == "LIF LOIHI":
-        # LOIHI
-            self.sim = nengo_loihi.Simulator(model,remove_passthrough=False, target='loihi', hardware_options={
-                    "snip_max_spikes_per_step": 300
-                    })
-        else:
-        # NENGO    
-            self.sim = nengo.Simulator(model, dt=0.001)
-
             
     def inverse_kinematics(self, nengo_type, lr = 1e-3,n_scale=1000):
         model = nengo.Network(seed=0)
@@ -256,6 +161,9 @@ class PS4Controller():
             def target_xyz_func(t):
                 return self.target 
 
+            def target_abg_func(t):
+                return self.abg_target 
+
             def current_q_func(t):
                 return self.current_q
 
@@ -263,7 +171,7 @@ class PS4Controller():
             model.q_c = nengo.Ensemble(n_scale*5, seed=0,
                                 intercepts=get_intercepts(n_scale*5, 5),
                                 dimensions=5,
-                                neuron_type=neuron,)
+                                neuron_type=LIF,)
 
             nengo.Connection(model.q_in, model.q_c)
 
@@ -292,6 +200,8 @@ class PS4Controller():
             model.xyz_in = nengo.Node(target_xyz_func)
             nengo.Connection(model.xyz_in, model.xyz_t, transform=-1)
 
+            model.abg_in = nengo.Node(target_abg_func)
+            nengo.Connection(model.abg_in, model.abg_t)
 
             model.error_node = nengo.Node(size_in=11)
             model.error_q = nengo.Ensemble(n_scale*11, dimensions=11,
@@ -423,6 +333,7 @@ class PS4Controller():
                 # prepare nengo model
                 self.target = np.zeros(3)
                 self.current = np.zeros(3)
+                self.abg_target = np.zeros(3)
                 self.current_q = robot_state.state_model
                 self.inverse_kinematics(nengo_type)
                 with self.sim:
