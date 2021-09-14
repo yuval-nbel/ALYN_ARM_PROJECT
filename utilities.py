@@ -278,15 +278,21 @@ def quaternion_from_euler(ai, aj, ak, axes="rxyz"):
 
 
 
-def get_intercepts(n_neurons, dimensions):
-
-    triangular = np.random.triangular(left=0.35, 
+def get_intercepts(n_neurons, dimensions, ens_name=""):
+    if ens_name == "error_combined":
+        triangular = np.random.triangular(left=0.65, 
+                                      mode=0.75, 
+                                      right=0.85, 
+                                      size=n_neurons)
+    else:
+        triangular = np.random.triangular(left=0.35, 
                                       mode=0.45, 
-                                      right=0.55, 
+                                      right=0.85, 
                                       size=n_neurons)
                                       
     intercepts = nengo.dists.CosineSimilarity(dimensions + 2).ppf(1 - triangular)
     return intercepts
+
 
 
 def calc_J(q):

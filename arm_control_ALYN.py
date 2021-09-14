@@ -41,22 +41,22 @@ Choose paramerters:
 """""""""""""""""""""""""""""""""""""""""""""""""""""
 
 os_type = "ubuntu_18"            ## "ubuntu_18" / "xavier"  
-openu = False                    ## True=openu, False=alyn
+openu = True                    ## True=openu, False=alyn
 using_the_physical_arm = False
-nengo_type = "LIF ALYN"         ## "no nengo" / "Direct" / "LIF OPENU" / "LIF ALYN" / "LIF LOIHI"
+nengo_type = "Direct"         ## "no nengo" / "Direct" / "LIF OPENU" / "LIF ALYN" / "LIF LOIHI"
 use_keyboard = True             ## True=keyboard, False=joystick
 speed = 2                       ## effects the speed 
-IK_model = 1                    ## 1=Hybrid, 2=SNN (no orientation), 3=SNN (with orientation)
+IK_model = 2                    ## 1=Hybrid, 2=SNN 
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""
 """""""""""""""""""""""""""""""""""""""""""""""""""""
 
 robot_config = return_Robot(openu, speed)    # Viper300 configuration
-velocity_delta = 0.01  # Gain factor for actuation
 ik_model = viper300()   # Viper300 IK model
 state = RobotState(robot_config['Real']['Home'], openu)
 
-
+if IK_model == 1: velocity_delta = 0.01  # Gain factor for actuation
+else: velocity_delta = 0.01  # The neuromorphic velocity doesn't have to be equal to the hybrid velocity
 
 if using_the_physical_arm:
     arm = RoboticArm(robot_config, COM_ID = '/dev/ttyUSB0')
@@ -122,7 +122,11 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
         if last_state != new_state and last_state is not None:
             reference = self.current
 
-        self.target = [0.5, reference[1] ,reference[2]]
+        if IK_model == 1:
+            t = 0.5
+        else:
+            t = min(0.5, reference[0]+0.05) # The neuromorphic model can move in a small range
+        self.target = [t, reference[1] ,reference[2]]
 
         last_state = new_state
 
@@ -136,6 +140,10 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
         if last_state != new_state and last_state is not None:
             reference = self.current
 
+        if IK_model == 1:
+            t = -0.5
+        else:
+            t = max(-0.5, reference[1]-0.05) # The neuromorphic model can move in a small range
         self.target = [-0.5, reference[1] ,reference[2]]
 
         last_state = new_state
@@ -151,7 +159,12 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
         if last_state != new_state and last_state is not None:
             reference = self.current
 
-        self.target = [reference[0], 0.7, reference[2]]
+        if IK_model == 1:
+            t = 0.7
+        else:
+            t = min(0.7, reference[1]+0.05) # The neuromorphic model can move in a small range
+
+        self.target = [reference[0], t, reference[2]]
 
         last_state = new_state
         
@@ -165,7 +178,12 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
         if last_state != new_state and last_state is not None:
             reference = self.current
 
-        self.target = [reference[0], -0.7, reference[2]]
+        if IK_model == 1:
+            t = -0.7
+        else:
+            t = max(-0.7, reference[1]-0.05) # The neuromorphic model can move in a small range
+
+        self.target = [reference[0], t, reference[2]]
 
         last_state = new_state
         
@@ -177,7 +195,12 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
         if last_state != new_state and last_state is not None:
             reference = self.current
 
-        self.target = [reference[0], reference[1] ,0.9]
+        if IK_model == 1:
+            t = 0.9
+        else:
+            t = min(0.9, reference[2]+0.05) # The neuromorphic model can move in a small range
+
+        self.target = [reference[0], reference[1] ,t]
 
         last_state = new_state
 
@@ -189,7 +212,12 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
         if last_state != new_state and last_state is not None:
             reference = self.current
 
-        self.target = [reference[0], reference[1] ,-0.6]
+        if IK_model == 1:
+            t = -0.6
+        else:
+            t = max(-0.6, reference[2]-0.05) # The neuromorphic model can move in a small range
+
+        self.target = [reference[0], reference[1] ,t]
 
         last_state = new_state
 
@@ -322,7 +350,7 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
         if nengo_type != "no nengo" and nengo_type != "LIF LOIHI":
             
             if IK_model == 1: TS = 1 
-            else: TS = 5
+            else: TS = 2
             start = time.time()
             self.sim.run(TS, progress_bar=True)
             end = time.time()
@@ -378,7 +406,7 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
 
         else:
             target = self.target + self.abg_target # include oreintation in target
-            updated_position = self.output_q - self.current_q
+            updated_position = (self.output_q - self.current_q) * velocity_delta
 
         robot_state.update_model(updated_position, openu)
         arm_actuation = robot_state.state_chair

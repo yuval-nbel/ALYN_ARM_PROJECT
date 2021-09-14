@@ -147,15 +147,15 @@ class PS4Controller():
             self.sim = nengo.Simulator(net, dt=0.001)
 
             
-    def inverse_kinematics(self, nengo_type, lr = 1e-3,n_scale=1000):
+    def inverse_kinematics(self, nengo_type, lr = 1e-3,n_scale=500):
         model = nengo.Network(seed=0)
-        count = 0
         if nengo_type == "Direct":
             neuron = Direct()
         else:
             neuron = LIF()
             
         np.random.seed(0)
+        model.config[nengo.Ensemble].neuron_type = nengo.Direct()
         with model:
 
             def target_xyz_func(t):
@@ -168,55 +168,62 @@ class PS4Controller():
                 return self.current_q
 
             model.q_in = nengo.Node(current_q_func)
-            model.q_c = nengo.Ensemble(n_scale*5, seed=0,
-                                intercepts=get_intercepts(n_scale*5, 5),
+            model.q_c = nengo.Ensemble(n_scale*5,
                                 dimensions=5,
-                                neuron_type=LIF,)
+                                radius = np.sqrt(5),
+                                neuron_type=LIF(),)
 
-            nengo.Connection(model.q_in, model.q_c)
+            nengo.Connection(model.q_in, model.q_c,function=lambda x: x / (2*np.pi))
 
             model.q_t = nengo.Ensemble(n_scale*5, dimensions=5,
-                                intercepts=get_intercepts(n_scale*5, 5),
-                                neuron_type=neuron,
+                                radius = np.sqrt(5), 
                                 )
             model.conn = nengo.Connection(model.q_c, model.q_t, synapse=0.01)
 
             model.xyz_t = nengo.Ensemble(n_scale*3, dimensions=3,
-                                intercepts=get_intercepts(n_scale*3, 3),
+                                radius = np.sqrt(3),
                                 neuron_type=neuron,
                                 )
             model.abg_t = nengo.Ensemble(n_scale*3, dimensions=3,
-                                intercepts=get_intercepts(n_scale*3, 3),
-                                neuron_type=neuron,
-                                )
+                              radius = np.sqrt(3),
+                              )
 
 
             def q2xyz(q):
-                t = calc_T(q)
+                q_ = q * (2*np.pi)
+                t = calc_T(q_)
                 return t[0], t[1], t[2]
 
-            nengo.Connection(model.q_t, model.xyz_t, function=q2xyz)
+            nengo.Connection(model.q_t, model.xyz_t, function=q2xyz, synapse=0.01)
 
             model.xyz_in = nengo.Node(target_xyz_func)
-            nengo.Connection(model.xyz_in, model.xyz_t, transform=-1)
+            nengo.Connection(model.xyz_in, model.xyz_t, transform=-1, synapse=0.01)
 
             model.abg_in = nengo.Node(target_abg_func)
-            nengo.Connection(model.abg_in, model.abg_t)
+            nengo.Connection(model.abg_in, model.abg_t, function=lambda x: x / (2*np.pi))
 
             model.error_node = nengo.Node(size_in=11)
             model.error_q = nengo.Ensemble(n_scale*11, dimensions=11,
                                     intercepts=get_intercepts(n_scale*11, 11),
+                                    radius = np.sqrt(11), 
                                     )
 
             def combine(error_q):
+                error_q_ = np.zeros(11)
+                error_q_[0:5] = error_q[0:5] * (2*np.pi)   # current
+                error_q_[5:8] = error_q[5:8]               # xyz
+                error_q_[8:] = error_q[8:] * (2*np.pi)     # abg target
+
                 direction = np.zeros(6)
                 direction[:3] = error_q[5:8]
                 R_e = calculate_R(error_q[0:5])
-                direction[3:] = calc_orientation_forces(error_q[8:], R_e)
+                direction[3:] = calc_orientation_forces(error_q_[8:], R_e)
+
                 direction = direction[self.control_dof]
-                J_x = calc_J_O(error_q[0:5])
+                J_x = calc_J_O(error_q_[0:5])
                 J_x = J_x[self.control_dof]
-                return np.dot(np.linalg.pinv(J_x), direction)
+                tmp = np.dot(np.linalg.pinv(J_x), direction)
+                return tmp / (2*np.pi)
 
             nengo.Connection(model.q_t, model.error_node[0:5])
             nengo.Connection(model.xyz_t, model.error_node[5:8])
@@ -225,7 +232,8 @@ class PS4Controller():
             nengo.Connection(model.error_node, model.error_q)
 
             model.error_combined = nengo.Ensemble(n_scale*5, dimensions=5,
-                                            intercepts=get_intercepts(n_scale*5, 5),
+                                            intercepts=get_intercepts(n_scale*5, 5,"error_combined"),
+                                            radius = np.sqrt(5),
                                             neuron_type=neuron,
                                         )
             nengo.Connection(model.error_q, model.error_combined, function=combine, synapse=0.01)
@@ -254,7 +262,7 @@ class PS4Controller():
                     })
         else:
         # NENGO    
-            self.sim = nengo.Simulator(model, dt=0.001)
+            self.sim = nengo.Simulator(model, dt=0.001, optimize=True)
 
 
     # Stop sending commends after leaving the joystick 
@@ -318,19 +326,7 @@ class PS4Controller():
                         else:
                             self.listen_keyboard(actuation_function_axis, robot_state, arm, nengo_type, dict_nengo, os_type, IK_model) 
             elif IK_model == 2:
-                # prepare nengo model
-                self.target = np.zeros(3)
-                self.current = np.zeros(3)
-                self.current_q = robot_state.state_model
-                self.inverse_kinematics_no_oreientation(nengo_type)
-                with self.sim:
-                    while True:
-                        if not use_keyboard:
-                            self.listen_joystick(actuation_function_axis, robot_state, arm, nengo_type, dict_nengo, os_type, IK_model)
-                        else:
-                            self.listen_keyboard(actuation_function_axis, robot_state, arm, nengo_type, dict_nengo, os_type, IK_model)
-            else:
-                # prepare nengo model
+                 # prepare nengo model
                 self.target = np.zeros(3)
                 self.current = np.zeros(3)
                 self.abg_target = np.zeros(3)

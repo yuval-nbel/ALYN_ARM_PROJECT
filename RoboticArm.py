@@ -24,15 +24,16 @@ import time
 import numpy as np
 from dynamixel_sdk import *
 
-# Offset angles for the physical arm in relative to the IK mpdel
-  
-offset_relative_to_IK_Model = {1: 90, 2: 180, 3: 180, 4: 180, 
-                               5: 180, 6: 0, 7: 180, 8: 0, 9: 0}
-
-offset_relative_to_IK_Model_openu = {1: 181, 2: 180, 3: 180, 4: 180, 
-                               5: 180, 6: 0, 7: 180, 8: 0, 9: 0}
 
 def robot_to_model_position(robot_position, openu=False):
+    # Offset angles for the physical arm in relative to the IK mpdel
+  
+    offset_relative_to_IK_Model = {1: 90, 2: 180, 3: 180, 4: 180, 
+                               5: 180, 6: 0, 7: 180, 8: 0, 9: 0}
+
+    offset_relative_to_IK_Model_openu = {1: 181, 2: 180, 3: 180, 4: 180, 
+                               5: 180, 6: 0, 7: 180, 8: 0, 9: 0}
+
     if openu:
         offset = offset_relative_to_IK_Model_openu
     else:
@@ -44,18 +45,30 @@ def robot_to_model_position(robot_position, openu=False):
             -1 * np.deg2rad(robot_position[7]-offset[7])]
 
 def model_to_robot_position(model_position, openu=False):
+    # Offset angles for the physical arm in relative to the IK mpdel
+  
+    offset_relative_to_IK_Model = {1: 90, 2: 180, 3: 180, 4: 180, 
+                               5: 180, 6: 0, 7: 180, 8: 0, 9: 0}
+
+    offset_relative_to_IK_Model_openu = {1: 181, 2: 180, 3: 180, 4: 180, 
+                               5: 180, 6: 0, 7: 180, 8: 0, 9: 0}
+    
     if openu:
         offset = offset_relative_to_IK_Model_openu
+        full_ang1 = 360
+        full_ang2 = 362
     else:
         offset = offset_relative_to_IK_Model
+        full_ang1 = 361
+        full_ang2 = 361 
     f = [ (np.rad2deg(     model_position[0])+offset[1])%360,
           (np.rad2deg(-1 * model_position[1])+offset[2])%360,
           360-((np.rad2deg(-1 * model_position[2])+offset[4])%360),
           (np.rad2deg(     model_position[3])+offset[6])%360,
           (np.rad2deg(-1 * model_position[4])+offset[7])%360]
 
-    return {1: f[0], 2: 361-f[1], 3: f[1], 4: f[2],
-            5: 361-f[2], 6: f[3], 7: f[4], 8: 180, 9: 180}
+    return {1: f[0], 2: full_ang1-f[1], 3: f[1], 4: f[2],
+            5: full_ang2-f[2], 6: f[3], 7: f[4], 8: 180, 9: 180}
 
 # ALYN    
 full_ang1 = 361
