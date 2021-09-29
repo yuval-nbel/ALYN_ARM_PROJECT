@@ -41,12 +41,12 @@ Choose paramerters:
 """""""""""""""""""""""""""""""""""""""""""""""""""""
 
 os_type = "ubuntu_18"            ## "ubuntu_18" / "xavier"  
-openu = True                    ## True=openu, False=alyn
-using_the_physical_arm = False
+openu = False                    ## True=openu, False=alyn
+using_the_physical_arm = True
 nengo_type = "Direct"         ## "no nengo" / "Direct" / "LIF OPENU" / "LIF ALYN" / "LIF LOIHI"
-use_keyboard = True             ## True=keyboard, False=joystick
+use_keyboard = False             ## True=keyboard, False=joystick
 speed = 2                       ## effects the speed 
-IK_model = 2                    ## 1=Hybrid, 2=SNN 
+IK_model = 1                    ## 1=Hybrid, 2=SNN 
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""
 """""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -243,7 +243,7 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
         # Checks if holding a cup
         arm_actuation = robot_state.state_chair
         grip = arm_actuation[9]
-        '''
+        
         if self.task_list[self.task] == 'Floor':   # So the arm won't hurt the chair on her way up from the floor
             if self.task_position == 'Default':
                 self.reaching_to_target = True
@@ -264,7 +264,7 @@ def actuation_function_axis(self, robot_state, act, axis_direction, buttons_dict
                 if arm is not None:  
                     arm.set_position(arm_actuation)
                 time.sleep(1)
-        '''
+        
 
         self.task = (self.task + 1) % len(self.task_list)
         self.task_position = 'Default' 
